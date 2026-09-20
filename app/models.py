@@ -1,8 +1,10 @@
+import re
 from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 
 MAX_MESSAGES = 500
@@ -27,6 +29,13 @@ class ProviderConfig(StrictModel):
     model: str = Field(min_length=1, max_length=200)
     api_token: str = Field(min_length=1, max_length=8_000)
     structured_output: bool = True
+
+    @field_validator("protocol", mode="before")
+    @classmethod
+    def validate_protocol(cls, value: object) -> object:
+        if value != "openai_chat_completions_v1":
+            raise PydanticCustomError("provider_protocol_unsupported", "unsupported provider protocol")
+        return value
 
 
 class Participant(StrictModel):
@@ -79,10 +88,10 @@ class ProcessRequest(StrictModel):
     def validate_size(self) -> "ProcessRequest":
         serialized_size = len(self.model_dump_json().encode("utf-8"))
         if serialized_size > MAX_REQUEST_BYTES:
-            raise ValueError("request exceeds maximum serialized size")
+            raise PydanticCustomError("request_too_large", "request exceeds maximum serialized size")
         context_size = len(self.context.model_dump_json().encode("utf-8"))
         if context_size > MAX_CONTEXT_BYTES:
-            raise ValueError("chat context exceeds maximum serialized size")
+            raise PydanticCustomError("context_too_large", "chat context exceeds maximum serialized size")
         return self
 
 
@@ -106,6 +115,19 @@ class ModelActionItem(StrictModel):
     due_date: date | None = None
     source_message_ids: list[str] = Field(min_length=1, max_length=MAX_MESSAGES)
     confidence: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("due_date", mode="before")
+    @classmethod
+    def validate_due_date(cls, value: object) -> object:
+        if value is None or isinstance(value, date):
+            return value
+        if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+            raise ValueError("due_date must use YYYY-MM-DD format")
+        try:
+            date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("due_date must be a valid calendar date") from exc
+        return value
 
 
 class ModelResult(StrictModel):

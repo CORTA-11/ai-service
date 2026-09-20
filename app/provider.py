@@ -1,5 +1,7 @@
 import json
+import os
 from collections.abc import AsyncIterator
+from typing import Protocol
 
 import httpx
 
@@ -14,7 +16,17 @@ Candidate action items are suggestions and must include source message IDs. Neve
 """
 
 
+class ProviderAdapter(Protocol):
+    async def complete(self, request: ProcessRequest) -> str:
+        ...
+
+
 class ProviderClient:
+    def __init__(self, timeout_seconds: float | None = None, transport: httpx.AsyncBaseTransport | None = None):
+        configured_timeout = os.getenv("AI_PROVIDER_TIMEOUT_SECONDS", "30")
+        self.timeout_seconds = timeout_seconds or max(float(configured_timeout), 0.1)
+        self.transport = transport
+
     async def complete(self, request: ProcessRequest) -> str:
         payload = {
             "model": request.provider.model,
@@ -27,9 +39,9 @@ class ProviderClient:
         if request.provider.structured_output:
             payload["response_format"] = {"type": "json_object"}
         headers = {"Authorization": f"Bearer {request.provider.api_token}", "Content-Type": "application/json"}
-        timeout = httpx.Timeout(30.0, connect=5.0)
+        timeout = httpx.Timeout(self.timeout_seconds, connect=min(5.0, self.timeout_seconds))
         try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, transport=self.transport) as client:
                 async with client.stream("POST", str(request.provider.endpoint_url), json=payload, headers=headers) as response:
                     if response.status_code in (401, 403):
                         raise AIServiceError(ErrorCode.AUTH_FAILED, "provider authentication failed", 502)

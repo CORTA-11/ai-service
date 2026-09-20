@@ -29,11 +29,29 @@ async def enforce_request_size(request: Request, call_next):
             return _error_response(AIServiceError(ErrorCode.INVALID_REQUEST, "invalid content length", 400))
         if declared_length > MAX_REQUEST_BYTES:
             return _error_response(AIServiceError(ErrorCode.CONTEXT_TOO_LARGE, "request is too large", 413))
-    return await call_next(request)
+    body = await request.body()
+    if len(body) > MAX_REQUEST_BYTES:
+        return _error_response(AIServiceError(ErrorCode.CONTEXT_TOO_LARGE, "request is too large", 413))
+
+    body_sent = False
+
+    async def receive():
+        nonlocal body_sent
+        if body_sent:
+            return {"type": "http.request", "body": b"", "more_body": False}
+        body_sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return await call_next(Request(request.scope, receive=receive))
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
+    error_types = {error.get("type") for error in exc.errors()}
+    if "context_too_large" in error_types or "request_too_large" in error_types:
+        return _error_response(AIServiceError(ErrorCode.CONTEXT_TOO_LARGE, "request is too large", 413))
+    if "provider_protocol_unsupported" in error_types:
+        return _error_response(AIServiceError(ErrorCode.PROTOCOL_UNSUPPORTED, "provider protocol is not supported", 400))
     return _error_response(AIServiceError(ErrorCode.INVALID_REQUEST, "request validation failed", 422))
 
 
