@@ -22,7 +22,6 @@ Set `AI_SERVICE_TOKEN` in both services to require the Core API's `X-Synodus-AI-
 
 ## Production image
 
-Pushing to `main` publishes `ghcr.io/corta-11/ai-service:latest` and redeploys
-`ai-service` and `api`. Configure `SERVER_HOST`, `SERVER_USER`, and
-`SERVER_SSH_KEY` for this repository, as with the other service repositories,
-and deploy the matching infra Compose changes before the first image release.
+Pushing to `main` publishes `ghcr.io/corta-11/ai-service:latest`. Deploy the
+matching infra Compose changes, then run `./deploy.sh ai-service` and
+`./deploy.sh api` on the production server to update both services.
