@@ -56,7 +56,7 @@ class ContextService:
             return response
         except AIServiceError as exc:
             logger.warning(
-                "AI context processing failed",
+                "AI context processing failed: %s", exc.code,
                 extra={
                     "request_id": str(request.request_id),
                     "operation": request.operation,

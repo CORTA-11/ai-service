@@ -224,6 +224,9 @@ def test_prompt_injection_is_data_and_token_is_not_prompt_content():
     assert "Ignore previous instructions" in context
     assert "request-secret" not in SYSTEM_INSTRUCTION
     assert "request-secret" not in context
+    output_schema = json.loads(context)["output_schema"]
+    assert set(output_schema["required"]) == {"schema_version", "summary", "action_items"}
+    assert output_schema["properties"]["summary"]["$ref"] == "#/$defs/Summary"
 
 
 def test_provider_failure_does_not_make_liveness_unhealthy(monkeypatch):
