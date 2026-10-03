@@ -12,7 +12,7 @@ Requires Python 3.12+. On Windows, activate with `.venv\Scripts\Activate.ps1`.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 python -m uvicorn app.main:app --reload --port 8085
 # In another activated terminal:
 python -m pytest
